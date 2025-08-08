@@ -32,9 +32,12 @@
     }
     .container {
       max-width: 960px;
+ 
+      
       margin: 0 auto;
       padding: 16px;
     }
+    
     h1 {
       font-size: 24px;
       margin-bottom: 12px;
@@ -69,6 +72,7 @@
     }
     .map {
       width: 100%;
+
       height: 350px;
       border: 1px solid #e5e7eb;
       border-radius: 8px;
@@ -97,21 +101,30 @@
       font-size: 14px;
       cursor: pointer;
     }
+   
     button:hover {
       background: #0b0e14;
     }
     small {
       color: #6b7280;
       display: block;
-      margin-top: 4px;
+      m
+
+      
+      argin-top: 4px;
     }
   </style>
 </head>
 <body>
+  
   <div class="container">
-    <h1>Gutter Cleaning Estimate</h1>
+  
+    <h1>Gut
+      te
+      r Cleaning Estimate</h1>
     <div class="grid">
       <!-- Left card: Map and address input -->
+  
       <div class="card">
         <label for="addr">Address</label>
         <input id="addr" placeholder="Start typing an address…">
@@ -165,21 +178,31 @@
       const nept = new google.maps.LatLng(ne.lat(), ne.lng());
       const se = new google.maps.LatLng(sw.lat(), ne.lng());
       const wM = google.maps.geometry.spherical.computeDistanceBetween(nw, nept);
+     
       const hM = google.maps.geometry.spherical.computeDistanceBetween(nept, se);
       const perFt = metersToFeet(2 * (wM + hM));
       return Math.max(0, Math.round(perFt * EAVES_RATIO));
     }
-    function priceEstimate(feet, ratePerFt, difficulty, frequency) {
+    fun
+      ction priceEstimate(feet, ratePerFt, difficulty, frequency) {
       feet = Math.max(0, parseFloat(feet) || 0);
       ratePerFt = Math.max(0, parseFloat(ratePerFt) || 0);
       let total = feet * ratePerFt + (parseFloat(difficulty) || 0);
+        
       if (frequency === 'spring-fall') total *= 0.88;
       return Math.round(total);
+
+        
+        
+        
     }
     function recomputeTotal() {
       const feet = document.getElementById('feet').value;
       const rate = document.getElementById('rate').value;
+      
       const diff = document.getElementById('difficulty').value;
+
+
       const freq = document.getElementById('frequency').value;
       const total = priceEstimate(feet, rate, diff, freq);
       document.getElementById('total').textContent = total;
@@ -198,7 +221,8 @@
         return;
       }
       const google = window.google;
-      const mapDiv = document.getElementById('map');
+      c
+        onst mapDiv = document.getElementById('map');
       const map = new google.maps.Map(mapDiv, {
         center: { lat: 41.6703, lng: -87.9387 }, // Homer Glen
         zoom: 15,
@@ -207,11 +231,14 @@
         fullscreenControl: false,
       });
       const input = document.getElementById('addr');
+
       const autocomplete = new google.maps.places.Autocomplete(input, {
         fields: ['formatted_address', 'geometry', 'place_id'],
+     
         types: ['address'],
       });
       autocomplete.addListener('place_changed', () => {
+       
         const place = autocomplete.getPlace();
         if (!place || !place.geometry) return;
         if (place.geometry.viewport) {
@@ -234,3 +261,4 @@
   </script>
 </body>
 </html>
+
