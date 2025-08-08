@@ -1,0 +1,269 @@
+<!--
+  Pressure Washing Estimate
+
+  This static HTML page provides a simple form that lets a customer enter
+  their address, optionally draw the area to be cleaned on a map, and
+  calculate a pressure washing estimate. The script uses the Google Maps
+  JavaScript API with Places, Drawing and Geometry libraries enabled.
+  When an address is selected, the map zooms to the location and
+  estimates the surface area from the rectangular viewport. Customers
+  can override the area value manually or by drawing a polygon with the
+  drawing tools. Pricing inputs allow adjustment of the rate per square
+  foot, difficulty add‭‑on, and frequency discount.
+
+  Note: For security, restrict your API key in the Google Cloud Console
+  by HTTP referrers (e.g. "*.spotbyd.com") and enable only the Maps
+  JavaScript API, Places API, and Drawing library. Replace the
+  placeholder below with your actual key (already filled for this project).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pressure Washing Estimate</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #fafafa;
+      color: #111;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .card {
+      flex: 1 1 300px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #555;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .map {
+      width: 100%;
+      height: 350px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .totals {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 6px;
+      background: #111827;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0b0e14;
+    }
+    small {
+      color: #6b7280;
+      display: block;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Pressure Washing Estimate</h1>
+    <div class="grid">
+      <!-- Left card: Map and address input -->
+      <div class="card">
+        <label for="p-addr">Address</label>
+        <input id="p-addr" placeholder="Start typing an address…">
+        <div id="p-map" class="map"><!-- map will render here --></div>
+        <label for="area">Estimated area (sq ft)</label>
+        <input id="area" type="number" min="0" step="1" value="0">
+        <small>This will auto‭fill after selecting an address or drawing on the map. You can adjust it manually.</small>
+      </div>
+      <!-- Right card: Pricing controls -->
+      <div class="card">
+        <label for="rate">Base rate ($/sq ft)</label>
+        <input id="rate" type="number" min="0.1" step="0.05" value="0.30">
+        <small>Typical: $0.20–$0.45/sq ft</small>
+
+        <label for="difficulty">Difficulty add‭‑on ($)</label>
+        <select id="difficulty">
+          <option value="0">Standard</option>
+          <option value="50">Moderate (+$50)</option>
+          <option value="120">Difficult (+$120)</option>
+        </select>
+
+        <label for="frequency">Frequency</label>
+        <select id="frequency">
+          <option value="one-time">One‭time</option>
+          <option value="annual">Annual (10% off)</option>
+        </select>
+
+        <div class="totals">
+          <span>Estimated total</span>
+          <strong>$<span id="total">0</span></strong>
+        </div>
+
+        <button id="cta">Request This Price</button>
+        <small>Prices are estimates only and may vary upon inspection.</small>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Configuration ---
+    const GMAPS_API_KEY = 'AIzaSyAUNzQlgyE7uQIJ0VlrS9clLNqCj6RmMXM';
+    const AREA_RATIO = 0.35; // fraction of rectangular viewport considered for cleaning when auto‭estimating
+
+    // --- Utilities ---
+    function metersToSqFeet(m) {
+      return (!Number.isFinite(m) || m < 0) ? 0 : m * 10.7639;
+    }
+    function estimateAreaFromViewport(google, viewport) {
+      const ne = viewport.getNorthEast();
+      const sw = viewport.getSouthWest();
+      const nw = new google.maps.LatLng(ne.lat(), sw.lng());
+      const nept = new google.maps.LatLng(ne.lat(), ne.lng());
+      const se = new google.maps.LatLng(sw.lat(), ne.lng());
+      const widthM = google.maps.geometry.spherical.computeDistanceBetween(nw, nept);
+      const heightM = google.maps.geometry.spherical.computeDistanceBetween(nept, se);
+      const areaMeters = widthM * heightM;
+      const areaFt = metersToSqFeet(areaMeters) * AREA_RATIO;
+      return Math.max(0, Math.round(areaFt));
+    }
+    function priceEstimate(area, ratePerSqFt, difficulty, frequency) {
+      area = Math.max(0, parseFloat(area) || 0);
+      ratePerSqFt = Math.max(0, parseFloat(ratePerSqFt) || 0);
+      let total = area * ratePerSqFt + (parseFloat(difficulty) || 0);
+      if (frequency === 'annual') total *= 0.90;
+      return Math.round(total);
+    }
+    function recomputeTotal() {
+      const areaVal = document.getElementById('area').value;
+      const rateVal = document.getElementById('rate').value;
+      const diffVal = document.getElementById('difficulty').value;
+      const freqVal = document.getElementById('frequency').value;
+      const total = priceEstimate(areaVal, rateVal, diffVal, freqVal);
+      document.getElementById('total').textContent = total;
+    }
+    document.getElementById('area').addEventListener('input', recomputeTotal);
+    document.getElementById('rate').addEventListener('input', recomputeTotal);
+    document.getElementById('difficulty').addEventListener('change', recomputeTotal);
+    document.getElementById('frequency').addEventListener('change', recomputeTotal);
+    document.getElementById('cta').addEventListener('click', () => {
+      alert('Thanks! We will contact you with a formal quote.');
+    });
+
+    // --- Google Maps boot ---
+    function initMap() {
+      if (!GMAPS_API_KEY || GMAPS_API_KEY === 'YOUR_KEY_HERE') {
+        console.error('Missing Google Maps API key');
+        return;
+      }
+      const google = window.google;
+      const mapDiv = document.getElementById('p-map');
+      const map = new google.maps.Map(mapDiv, {
+        center: { lat: 41.6703, lng: -87.9387 }, // Homer Glen
+        zoom: 15,
+        mapTypeId: 'hybrid',
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+      // Place autocomplete
+      const input = document.getElementById('p-addr');
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ['formatted_address', 'geometry', 'place_id'],
+        types: ['address'],
+      });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place || !place.geometry) return;
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+          map.setZoom(19);
+          const estArea = estimateAreaFromViewport(google, place.geometry.viewport);
+          document.getElementById('area').value = estArea;
+        } else if (place.geometry.location) {
+          map.setCenter(place.geometry.location);
+          map.setZoom(19);
+        }
+        recomputeTotal();
+      });
+      // Drawing manager for user-defined area
+      let drawnPolygon = null;
+      const drawingManager = new google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: true,
+        drawingControlOptions: {
+          position: google.maps.ControlPosition.TOP_CENTER,
+          drawingModes: [google.maps.drawing.OverlayType.POLYGON],
+        },
+        polygonOptions: {
+          fillColor: '#2196f3',
+          fillOpacity: 0.2,
+          strokeColor: '#2196f3',
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+        },
+      });
+      drawingManager.setMap(map);
+      google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {
+        // remove previous polygon
+        if (drawnPolygon) {
+          drawnPolygon.setMap(null);
+        }
+        drawnPolygon = event.overlay;
+        const path = drawnPolygon.getPath();
+        const areaMeters = google.maps.geometry.spherical.computeArea(path);
+        const areaFeet = metersToSqFeet(areaMeters);
+        document.getElementById('area').value = Math.round(areaFeet);
+        recomputeTotal();
+      });
+    }
+    // Expose callback for Google Maps script
+    window.initMap = initMap;
+  </script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAUNzQlgyE7uQIJ0VlrS9clLNqCj6RmMXM&libraries=places,drawing,geometry&callback=initMap">
+  </script>
+</body>
+</html>
