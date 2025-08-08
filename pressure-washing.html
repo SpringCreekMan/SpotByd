@@ -9,7 +9,7 @@
   estimates the surface area from the rectangular viewport. Customers
   can override the area value manually or by drawing a polygon with the
   drawing tools. Pricing inputs allow adjustment of the rate per square
-  foot, difficulty add‭‑on, and frequency discount.
+  foot, difficulty add‑on, and frequency discount.
 
   Note: For security, restrict your API key in the Google Cloud Console
   by HTTP referrers (e.g. "*.spotbyd.com") and enable only the Maps
@@ -118,7 +118,7 @@
         <div id="p-map" class="map"><!-- map will render here --></div>
         <label for="area">Estimated area (sq ft)</label>
         <input id="area" type="number" min="0" step="1" value="0">
-        <small>This will auto‭fill after selecting an address or drawing on the map. You can adjust it manually.</small>
+        <small>This will auto‑fill after selecting an address or by drawing a polygon around your driveway, patios or other concrete slabs on the map. You can adjust it manually.</small>
       </div>
       <!-- Right card: Pricing controls -->
       <div class="card">
@@ -126,7 +126,7 @@
         <input id="rate" type="number" min="0.1" step="0.05" value="0.30">
         <small>Typical: $0.20–$0.45/sq ft</small>
 
-        <label for="difficulty">Difficulty add‭‑on ($)</label>
+        <label for="difficulty">Difficulty add‑on ($)</label>
         <select id="difficulty">
           <option value="0">Standard</option>
           <option value="50">Moderate (+$50)</option>
@@ -135,7 +135,7 @@
 
         <label for="frequency">Frequency</label>
         <select id="frequency">
-          <option value="one-time">One‭time</option>
+          <option value="one-time">One‑time</option>
           <option value="annual">Annual (10% off)</option>
         </select>
 
@@ -152,7 +152,20 @@
   <script>
     // --- Configuration ---
     const GMAPS_API_KEY = 'AIzaSyAUNzQlgyE7uQIJ0VlrS9clLNqCj6RmMXM';
-    const AREA_RATIO = 0.35; // fraction of rectangular viewport considered for cleaning when auto‭estimating
+    // When a user selects an address without drawing a polygon, we estimate the
+    // cleanable surface based on the map viewport.  In most homes the
+    // driveway and concrete patios make up only a fraction of the overall
+    // building footprint.  Adjust this ratio to tune the default estimate.
+    // A value around 0.12 assumes roughly 12 % of the bounding rectangle is
+    // concrete (e.g. driveway, sidewalks, patios).  You can change this
+    // number to better match your local market.
+    const AREA_RATIO = 0.12;
+
+    // Typical minimum driveway/patio area in square feet. If the
+    // viewport‑derived area times AREA_RATIO is smaller than this value, we
+    // fall back to this number.  A two‑car driveway is roughly 20×20 ft
+    // (400 sq ft), which serves as a reasonable baseline.
+    const DEFAULT_CONCRETE_AREA = 400;
 
     // --- Utilities ---
     function metersToSqFeet(m) {
@@ -168,7 +181,8 @@
       const heightM = google.maps.geometry.spherical.computeDistanceBetween(nept, se);
       const areaMeters = widthM * heightM;
       const areaFt = metersToSqFeet(areaMeters) * AREA_RATIO;
-      return Math.max(0, Math.round(areaFt));
+      // Use DEFAULT_CONCRETE_AREA if the calculated area is smaller than this baseline.
+      return Math.max(DEFAULT_CONCRETE_AREA, Math.round(areaFt));
     }
     function priceEstimate(area, ratePerSqFt, difficulty, frequency) {
       area = Math.max(0, parseFloat(area) || 0);
