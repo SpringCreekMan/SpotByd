@@ -1,0 +1,236 @@
+<!--
+  Quick Quote Static Site for Gutter Cleaning
+
+  This static HTML page provides a simple form that lets a customer enter
+  their address, automatically measure the approximate eave length from
+  the building footprint using Google Maps, and calculate a cleaning
+  estimate. The script uses the Google Maps JavaScript API with Places
+  autocomplete and geometry libraries enabled. When an address is
+  selected, the map zooms to the location and estimates the gutter feet
+  from the rectangular viewport. Users can override the length value and
+  adjust pricing inputs (rate per foot, difficulty add‑on, and
+  frequency discount) to see the total update live.
+
+  Note: To protect your API key, restrict it in the Google Cloud Console
+  by HTTP referrers (e.g. "*.spotbyd.com") and enable only the Maps
+  JavaScript API and Places API. Replace the placeholder below with
+  your actual key (already filled for this project).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gutter Cleaning Estimate</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #fafafa;
+      color: #111;
+    }
+    .container {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+    .grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .card {
+      flex: 1 1 300px;
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 16px;
+      box-sizing: border-box;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      color: #555;
+      margin-top: 12px;
+      margin-bottom: 4px;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    .map {
+      width: 100%;
+      height: 350px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .totals {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #e5e7eb;
+      background: #f9fafb;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 12px;
+      border: none;
+      border-radius: 6px;
+      background: #111827;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #0b0e14;
+    }
+    small {
+      color: #6b7280;
+      display: block;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Gutter Cleaning Estimate</h1>
+    <div class="grid">
+      <!-- Left card: Map and address input -->
+      <div class="card">
+        <label for="addr">Address</label>
+        <input id="addr" placeholder="Start typing an address…">
+        <div id="map" class="map"><!-- map will render here --></div>
+        <label for="feet">Estimated gutter feet</label>
+        <input id="feet" type="number" min="0" step="1" value="0">
+        <small>This will auto‑fill after selecting an address. You can adjust it manually.</small>
+      </div>
+      <!-- Right card: Pricing controls -->
+      <div class="card">
+        <label for="rate">Base rate ($/ft)</label>
+        <input id="rate" type="number" min="0.5" step="0.05" value="1.20">
+        <small>Typical: $0.85–$1.50/ft</small>
+
+        <label for="difficulty">Difficulty add‑on ($)</label>
+        <select id="difficulty">
+          <option value="0">Standard</option>
+          <option value="75">Moderate (+$75)</option>
+          <option value="150">Difficult (+$150)</option>
+        </select>
+
+        <label for="frequency">Frequency</label>
+        <select id="frequency">
+          <option value="one-time">One‑time</option>
+          <option value="spring-fall">Spring + Fall (12% off)</option>
+        </select>
+
+        <div class="totals">
+          <span>Estimated total</span>
+          <strong>$<span id="total">0</span></strong>
+        </div>
+
+        <button id="cta">Request This Price</button>
+        <small>Prices are estimates only and may vary upon inspection.</small>
+      </div>
+    </div>
+  </div>
+  <script>
+    // --- Configuration ---
+    const GMAPS_API_KEY = 'AIzaSyAUNzQlgyE7uQIJ0VlrS9clLNqCj6RmMXM';
+    const EAVES_RATIO = 0.75; // adjust based on your market/home type mix
+
+    // --- Utilities ---
+    function metersToFeet(m) {
+      return (!Number.isFinite(m) || m < 0) ? 0 : m * 3.28084;
+    }
+    function estimateFeetFromViewport(google, viewport) {
+      const ne = viewport.getNorthEast();
+      const sw = viewport.getSouthWest();
+      const nw = new google.maps.LatLng(ne.lat(), sw.lng());
+      const nept = new google.maps.LatLng(ne.lat(), ne.lng());
+      const se = new google.maps.LatLng(sw.lat(), ne.lng());
+      const wM = google.maps.geometry.spherical.computeDistanceBetween(nw, nept);
+      const hM = google.maps.geometry.spherical.computeDistanceBetween(nept, se);
+      const perFt = metersToFeet(2 * (wM + hM));
+      return Math.max(0, Math.round(perFt * EAVES_RATIO));
+    }
+    function priceEstimate(feet, ratePerFt, difficulty, frequency) {
+      feet = Math.max(0, parseFloat(feet) || 0);
+      ratePerFt = Math.max(0, parseFloat(ratePerFt) || 0);
+      let total = feet * ratePerFt + (parseFloat(difficulty) || 0);
+      if (frequency === 'spring-fall') total *= 0.88;
+      return Math.round(total);
+    }
+    function recomputeTotal() {
+      const feet = document.getElementById('feet').value;
+      const rate = document.getElementById('rate').value;
+      const diff = document.getElementById('difficulty').value;
+      const freq = document.getElementById('frequency').value;
+      const total = priceEstimate(feet, rate, diff, freq);
+      document.getElementById('total').textContent = total;
+    }
+    document.getElementById('feet').addEventListener('input', recomputeTotal);
+    document.getElementById('rate').addEventListener('input', recomputeTotal);
+    document.getElementById('difficulty').addEventListener('change', recomputeTotal);
+    document.getElementById('frequency').addEventListener('change', recomputeTotal);
+    document.getElementById('cta').addEventListener('click', () => {
+      alert('Thanks! We will contact you with a formal quote.');
+    });
+    // --- Google Maps boot ---
+    function initMap() {
+      if (!GMAPS_API_KEY || GMAPS_API_KEY === 'YOUR_KEY_HERE') {
+        console.error('Missing Google Maps API key');
+        return;
+      }
+      const google = window.google;
+      const mapDiv = document.getElementById('map');
+      const map = new google.maps.Map(mapDiv, {
+        center: { lat: 41.6703, lng: -87.9387 }, // Homer Glen
+        zoom: 15,
+        mapTypeId: 'hybrid',
+        streetViewControl: false,
+        fullscreenControl: false,
+      });
+      const input = document.getElementById('addr');
+      const autocomplete = new google.maps.places.Autocomplete(input, {
+        fields: ['formatted_address', 'geometry', 'place_id'],
+        types: ['address'],
+      });
+      autocomplete.addListener('place_changed', () => {
+        const place = autocomplete.getPlace();
+        if (!place || !place.geometry) return;
+        if (place.geometry.viewport) {
+          map.fitBounds(place.geometry.viewport);
+          map.setZoom(19);
+          const estFeet = estimateFeetFromViewport(google, place.geometry.viewport);
+          document.getElementById('feet').value = estFeet;
+        } else if (place.geometry.location) {
+          map.setCenter(place.geometry.location);
+          map.setZoom(19);
+        }
+        recomputeTotal();
+      });
+    }
+    // Expose callback for Google Maps script
+    window.initMap = initMap;
+  </script>
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAUNzQlgyE7uQIJ0VlrS9clLNqCj6RmMXM&libraries=places,geometry&callback=initMap">
+  </script>
+</body>
+</html>
